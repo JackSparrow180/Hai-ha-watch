@@ -1,8 +1,8 @@
-const CACHE_NAME = "haiha-usd-watch-v6";
+const CACHE_NAME = "haiha-usd-watch-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./app.js?v=2.6",
+  "./app.js?v=2.7",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
