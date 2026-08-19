@@ -192,7 +192,7 @@
         els.sourceTitle.textContent = "Hai Ha Auto · dữ liệu quá cũ";
       }
       els.sourceMeta.textContent = "Lần xác minh Hai Ha gần nhất: " + fmtDateTime(auto.lastSuccessAt || latest.ts) +
-        ". App đọc trực tiếp YOU SELL USD → YOU RECEIVE AUD và tính tỷ giá từ số AUD nhận được / số USD bán." +
+        ". App lấy đúng rate Hai Ha dùng cho YOU SELL USD. Endpoint có chữ “buy” vì Hai Ha đang mua USD của bạn; app đổi 1 AUD = X USD thành 1 USD = 1/X AUD." +
         (auto.lastError ? " Auto Check gần nhất lỗi: " + auto.lastError : "");
       return;
     }
@@ -515,7 +515,8 @@
       payload.mode === "CUSTOMER_SELLS_USD" &&
       payload.verified === true &&
       (payload.quoteMethod === "SELL_OUTPUT_DIVIDED_BY_INPUT" ||
-       payload.quoteMethod === "HAIHA_SELL_USD_RATE_RECIPROCAL") &&
+       payload.quoteMethod === "HAIHA_SELL_USD_RATE_RECIPROCAL" ||
+       payload.quoteMethod === "HAIHA_BUY_USD_RATE_RECIPROCAL") &&
       isValidRate(Number(payload.rate));
   }
 
@@ -703,4 +704,4 @@
   console.info("Hai Ha USD Watch v" + APP_VERSION + " loaded");
 })();
 
-// Hai Ha USD Watch frontend v2.6 - cache-bust release
+// Hai Ha USD Watch frontend v2.7 - correct customer-sell endpoint
