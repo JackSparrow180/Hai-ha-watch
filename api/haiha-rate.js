@@ -29,89 +29,101 @@ async function bodyText(page) {
   return page.evaluate(() => document.body?.innerText || "");
 }
 
-async function describeSellControl(handle) {
-  return handle.evaluate((el) => {
-    const className = typeof el.className === "string" ? el.className : "";
-    const parentClass = typeof el.parentElement?.className === "string" ? el.parentElement.className : "";
-    const input = el.matches?.("input") ? el : el.querySelector?.("input");
-    return {
-      text: (el.textContent || el.getAttribute?.("aria-label") || "").trim(),
-      ariaSelected: el.getAttribute?.("aria-selected") || "",
-      ariaPressed: el.getAttribute?.("aria-pressed") || "",
-      ariaChecked: el.getAttribute?.("aria-checked") || "",
-      dataState: el.getAttribute?.("data-state") || "",
-      className,
-      parentClass,
-      checked: Boolean(input?.checked),
+async function getSellModeSnapshot(page) {
+  return page.evaluate(() => {
+    const norm = (v) => String(v || "").replace(/\s+/g, " ").trim();
+    const visible = (el) => {
+      const s = window.getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return s.display !== "none" && s.visibility !== "hidden" && r.width > 0 && r.height > 0;
     };
+    const exactSell = /^(you sell|bạn bán|ban ban)$/i;
+
+    const all = Array.from(document.querySelectorAll("body *")).filter(visible);
+    const candidates = [];
+    for (const el of all) {
+      const ownText = norm(Array.from(el.childNodes || [])
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent)
+        .join(" "));
+      const fullText = norm(el.textContent);
+      const aria = norm(el.getAttribute?.("aria-label"));
+      const text = ownText || aria || fullText;
+      if (!exactSell.test(text)) continue;
+
+      const target = el.closest?.("button,[role='button'],[role='tab'],label,a,[tabindex],input[type='radio']") || el;
+      const tr = target.getBoundingClientRect();
+      candidates.push({
+        text,
+        tag: target.tagName,
+        role: target.getAttribute?.("role") || "",
+        className: typeof target.className === "string" ? target.className.slice(0, 300) : "",
+        ariaSelected: target.getAttribute?.("aria-selected") || "",
+        ariaPressed: target.getAttribute?.("aria-pressed") || "",
+        ariaChecked: target.getAttribute?.("aria-checked") || "",
+        x: tr.left + tr.width / 2,
+        y: tr.top + tr.height / 2,
+        width: tr.width,
+        height: tr.height,
+      });
+    }
+
+    const body = norm(document.body?.innerText || "");
+    const formLooksSell = /\byou sell\b|\bbạn bán\b/i.test(body) && /\byou receive\b|\bbạn nhận\b/i.test(body);
+    return { candidates: candidates.slice(0, 12), formLooksSell, bodyPreview: body.slice(0, 1200) };
   });
 }
 
-function looksActive(state) {
-  if (!state) return false;
-  if ([state.ariaSelected, state.ariaPressed, state.ariaChecked].some((v) => String(v).toLowerCase() === "true")) return true;
-  if (/active|selected|current|checked|on/i.test(state.dataState || "")) return true;
-  if (/\b(active|selected|current|checked|on)\b/i.test(`${state.className || ""} ${state.parentClass || ""}`)) return true;
-  return Boolean(state.checked);
-}
+async function clickSellModeByVisibleText(page) {
+  const snapshot = await getSellModeSnapshot(page);
 
-async function findSellControls(page) {
-  const handles = await page.$$("button,[role='tab'],[role='button'],a,label,input[type='radio']");
-  const matches = [];
-  for (const handle of handles) {
-    const state = await describeSellControl(handle).catch(() => null);
-    if (!state) continue;
-    if (/^(you\s*sell|sell|bạn\s*bán|ban\s*ban)$/i.test(state.text)) {
-      matches.push({ handle, state });
-    }
-  }
-  return matches;
-}
-
-async function verifySellMode(page) {
-  const controls = await findSellControls(page);
-  for (const item of controls) {
-    const state = await describeSellControl(item.handle).catch(() => null);
-    if (looksActive(state)) return true;
-  }
-  return false;
-}
-
-async function activateAndVerifySellMode(page) {
-  const controls = await findSellControls(page);
-  if (!controls.length) {
-    throw new HaiHaRateError("SELL_BUTTON_NOT_FOUND", "Không tìm thấy nút 'You sell/Bạn bán' trên calculator Hai Ha.");
-  }
-
-  if (controls.some((item) => looksActive(item.state))) {
-    log("SELL_MODE_VERIFIED", "already active");
+  // If the calculator is already displaying the SELL form, do not depend on the
+  // styling/state of the top toggle. The form labels are a stronger signal.
+  if (snapshot.formLooksSell) {
+    log("SELL_MODE_VERIFIED", "sell form already visible");
     return;
   }
 
-  let clickWorked = false;
-  for (const item of controls) {
+  if (!snapshot.candidates.length) {
+    log("SELL_BUTTON_NOT_FOUND", snapshot.bodyPreview?.slice(0, 250) || "no body text");
+    throw new HaiHaRateError(
+      "SELL_BUTTON_NOT_FOUND",
+      "Không tìm thấy nút 'You sell/Bạn bán' trên calculator Hai Ha."
+    );
+  }
+
+  let clicked = false;
+  for (const candidate of snapshot.candidates) {
     try {
-      await item.handle.click();
-      clickWorked = true;
-      log("SELL_CONTROL_CLICKED");
+      // Coordinates are more robust than relying on a specific HTML tag. Hai Ha
+      // can render the segmented control as a div/span instead of a <button>.
+      await page.mouse.click(candidate.x, candidate.y);
+      clicked = true;
+      log("SELL_CONTROL_CLICKED", `${candidate.tag} ${candidate.role || ""} ${candidate.text}`);
       break;
     } catch (error) {
       log("SELL_CLICK_FAILED", error?.message || "unknown click error");
     }
   }
 
-  if (!clickWorked) {
-    throw new HaiHaRateError("SELL_CLICK_FAILED", "Không thể chuyển calculator Hai Ha sang chế độ 'You sell/Bạn bán'.");
+  if (!clicked) {
+    throw new HaiHaRateError("SELL_CLICK_FAILED", "Không thể bấm chế độ 'You sell/Bạn bán' trên calculator Hai Ha.");
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 700));
-  if (!(await verifySellMode(page))) {
-    throw new HaiHaRateError(
-      "SELL_MODE_NOT_VERIFIED",
-      "Đã bấm 'You sell/Bạn bán' nhưng không xác minh được calculator thực sự ở chế độ bán."
-    );
+  const deadline = Date.now() + ACTION_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const after = await getSellModeSnapshot(page);
+    if (after.formLooksSell) {
+      log("SELL_MODE_VERIFIED", "sell form labels visible");
+      return;
+    }
   }
-  log("SELL_MODE_VERIFIED");
+
+  throw new HaiHaRateError(
+    "SELL_MODE_NOT_VERIFIED",
+    "Đã bấm 'You sell/Bạn bán' nhưng calculator chưa hiển thị form bán ngoại tệ."
+  );
 }
 
 // Inspect visible calculator inputs and use the smallest nearby DOM context to verify
@@ -296,7 +308,7 @@ export default async function handler(req, res) {
     }
     log("MAINTENANCE_CHECK", "clear");
 
-    await activateAndVerifySellMode(page);
+    await clickSellModeByVisibleText(page);
 
     text = await bodyText(page);
     if (isMaintenanceText(text)) {
