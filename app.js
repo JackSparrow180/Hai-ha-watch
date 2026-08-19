@@ -702,3 +702,5 @@
 
   console.info("Hai Ha USD Watch v" + APP_VERSION + " loaded");
 })();
+
+// Hai Ha USD Watch frontend v2.6 - cache-bust release
