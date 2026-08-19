@@ -1,0 +1,30 @@
+{
+  "name": "Hai Ha USD Watch",
+  "short_name": "USD Watch",
+  "description": "Theo dõi tỷ giá khi bán USD cho Hai Ha và nhận AUD, với Auto Check xác minh + manual fallback.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F3ECD8",
+  "theme_color": "#16241D",
+  "lang": "vi-AU",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

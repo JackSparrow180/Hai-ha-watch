@@ -1,0 +1,17 @@
+{
+  "name": "haiha-usd-watch-v2-2-live",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check app.js && node --check api/haiha-rate.js && node --check lib/haiha-parser.js"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "149.0.0",
+    "puppeteer-core": "25.1.0"
+  }
+}
