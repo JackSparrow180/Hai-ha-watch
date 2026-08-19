@@ -514,9 +514,8 @@
       payload.customerAction === "SELL" &&
       payload.mode === "CUSTOMER_SELLS_USD" &&
       payload.verified === true &&
-      payload.quoteMethod === "SELL_OUTPUT_DIVIDED_BY_INPUT" &&
-      Number(payload.soldUsd) > 0 &&
-      Number(payload.receivedAud) > 0 &&
+      (payload.quoteMethod === "SELL_OUTPUT_DIVIDED_BY_INPUT" ||
+       payload.quoteMethod === "HAIHA_SELL_USD_RATE_RECIPROCAL") &&
       isValidRate(Number(payload.rate));
   }
 
