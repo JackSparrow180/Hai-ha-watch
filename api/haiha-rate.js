@@ -1,4 +1,7 @@
-const HAIHA_SELL_USD_ENDPOINT = "https://fefx-api.fefx.com.au/api/swift/rate/sell/USD";
+// IMPORTANT: In Hai Ha's calculator, CUSTOMER "YOU SELL" USD maps to the
+// upstream /buy/USD endpoint because Hai Ha is BUYING the customer's USD.
+// This was verified from the calculator Network panel.
+const HAIHA_CUSTOMER_SELLS_USD_ENDPOINT = "https://fefx-api.fefx.com.au/api/swift/rate/buy/USD";
 const FETCH_TIMEOUT_MS = 8000;
 
 class HaiHaRateError extends Error {
@@ -23,8 +26,8 @@ function isFinitePositiveNumber(value) {
   return Number.isFinite(n) && n > 0;
 }
 
-function validateRawSellRate(rawRate) {
-  // Hai Ha's public SELL/USD endpoint returns foreign-currency units per 1 AUD.
+function validateRawCustomerSellRate(rawRate) {
+  // Hai Ha's /buy/USD endpoint (used by the calculator when the customer selects YOU SELL USD) returns USD per 1 AUD.
   // For USD this should be a plausible AUD->USD quote, not the USD->AUD display
   // value used by our app. Keep a broad sanity bound so obviously broken data
   // (0, null, HTML, etc.) is rejected without pretending this is direction proof.
@@ -46,13 +49,13 @@ export default async function handler(req, res) {
   const fetchedAt = new Date().toISOString();
 
   try {
-    const upstream = await fetch(HAIHA_SELL_USD_ENDPOINT, {
+    const upstream = await fetch(HAIHA_CUSTOMER_SELLS_USD_ENDPOINT, {
       method: "GET",
       headers: {
         Accept: "application/json",
         Origin: "https://www.hhmt.com.au",
         Referer: "https://www.hhmt.com.au/foreign-exchange?type=you-sell",
-        "User-Agent": "HaiHa-USD-Watch/2.5"
+        "User-Agent": "HaiHa-USD-Watch/2.7"
       },
       cache: "no-store",
       signal: controller.signal
@@ -89,7 +92,7 @@ export default async function handler(req, res) {
       );
     }
 
-    if (!validateRawSellRate(rawRate)) {
+    if (!validateRawCustomerSellRate(rawRate)) {
       throw new HaiHaRateError(
         "HAIHA_INVALID_RATE",
         "Hai Ha trả tỷ giá USD không hợp lệ.",
@@ -98,10 +101,10 @@ export default async function handler(req, res) {
       );
     }
 
-    // Hai Ha public endpoint path is /rate/sell/USD and the live calculator
-    // presents this quote as 1 AUD = rawRate USD. For a customer selling USD
-    // and receiving AUD, the normalized app rate is therefore 1 / rawRate:
-    // 1 USD = (1/rawRate) AUD.
+    // When the customer chooses YOU SELL USD, Hai Ha calls /rate/buy/USD because
+    // Hai Ha is buying the customer's USD. The calculator displays that raw quote
+    // as 1 AUD = rawRate USD. The app normalizes it to the user's perspective:
+    // 1 USD = (1 / rawRate) AUD.
     const normalizedUsdToAud = 1 / rawRate;
 
     // Extra sanity bound for the normalized USD -> AUD result.
@@ -125,9 +128,9 @@ export default async function handler(req, res) {
       rate: Number(normalizedUsdToAud.toFixed(8)),
       rawHaiHaRate: rawRate,
       rawHaiHaConvention: "1_AUD_EQUALS_X_USD",
-      quoteMethod: "HAIHA_SELL_USD_RATE_RECIPROCAL",
-      source: "Hai Ha public FX sell/USD endpoint",
-      sourceEndpoint: HAIHA_SELL_USD_ENDPOINT,
+      quoteMethod: "HAIHA_BUY_USD_RATE_RECIPROCAL",
+      source: "Hai Ha calculator rate · customer YOU SELL USD",
+      sourceEndpoint: HAIHA_CUSTOMER_SELLS_USD_ENDPOINT,
       fetchedAt
     });
   } catch (error) {
